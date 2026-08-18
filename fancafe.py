@@ -38,9 +38,7 @@ def load_data():
     sheet = client.open_by_key(SHEET_ID).worksheet(TAB_NAME)
     data = sheet.get_all_records(value_render_option='FORMATTED_VALUE')
     df = pd.DataFrame(data)
-    
     df['SheetRow'] = df.index + 2 
-    
     if 'SDT' in df.columns:
         df['SDT'] = df['SDT'].apply(fix_phone_number)
     return df
@@ -103,13 +101,12 @@ if 'success_msg' not in st.session_state:
     st.session_state['success_msg'] = ""
 if 'active_tab' not in st.session_state:
     st.session_state['active_tab'] = "CHECK-IN"
-
 if 'inp_search_checkin' not in st.session_state:
     st.session_state['inp_search_checkin'] = ""
 if 'inp_search_gift' not in st.session_state:
     st.session_state['inp_search_gift'] = ""
 
-# --- CSS TÙY CHỈNH ---
+# --- CSS TÙY CHỈNH (MẠNH NHẤT ĐỂ ÉP MOBILE) ---
 css = """
 <style>
     footer {visibility: hidden;}
@@ -135,9 +132,9 @@ css = """
     .bg-yellow { background-color: #fff9c4; color: #f57f17; }
 
     /* =========================================
-       MÀU SẮC NÚT (BUTTONS) 
+       1. MÀU SẮC NÚT & TAB VÀNG
        ========================================= */
-    /* 1. Mặc định tất cả nút Primary (Check in, Tặng quà) là XANH LÁ */
+    /* Mặc định nút Primary là Xanh lá (Dùng cho Action Buttons) */
     .stButton > button[kind="primary"] { 
         background-color: #4caf50 !important; 
         color: white !important; 
@@ -146,40 +143,41 @@ css = """
         border-radius: 8px; 
     }
     
-    /* 2. Ép riêng Nút Tab đang Active (Cụm cột số 2) thành VÀNG */
-    .main div[data-testid="stHorizontalBlock"]:nth-of-type(2) button[kind="primary"] {
+    /* Ép cụm cột nào chứa thẻ marker Tab Active chuyển sang nút Vàng */
+    div[data-testid="column"]:has(.active-tab-marker) button {
         background: linear-gradient(135deg, #fceabb 0%, #f8b500 100%) !important;
         color: #333 !important;
         border-bottom: 3px solid #f57f17 !important;
+        box-shadow: 0 4px 6px rgba(245, 127, 23, 0.3) !important;
     }
 
     /* =========================================
-       ÉP HÀNG NGANG TRÊN MOBILE (Bất chấp màn hình nhỏ)
+       2. ÉP NẰM NGANG TRÊN MOBILE CHUẨN XÁC NHẤT
        ========================================= */
-    @media (max-width: 600px) {
-        /* Cụm 1 (Header Cập nhật/Đăng xuất) & Cụm 2 (Tabs) sẽ KHÔNG rớt dòng */
-        .main div[data-testid="stHorizontalBlock"]:nth-of-type(1),
-        .main div[data-testid="stHorizontalBlock"]:nth-of-type(2) {
+    @media (max-width: 768px) {
+        /* Bẻ khóa tính năng tự động rớt dòng của Streamlit */
+        div[data-testid="stHorizontalBlock"] {
             flex-direction: row !important;
             flex-wrap: nowrap !important;
+            align-items: center !important;
         }
-        
-        /* Chỉnh lại độ rộng cột để nhét vừa trên 1 hàng */
-        .main div[data-testid="stHorizontalBlock"]:nth-of-type(1) > div[data-testid="column"],
-        .main div[data-testid="stHorizontalBlock"]:nth-of-type(2) > div[data-testid="column"] {
+        /* Ép các cột chia đều không gian trên cùng 1 hàng */
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+            width: auto !important;
             min-width: 0 !important;
-            padding: 0 4px !important;
+            padding: 0 3px !important;
         }
-        
-        /* Thu nhỏ nhẹ font chữ trên mobile để không bị tràn */
-        .main div[data-testid="stHorizontalBlock"]:nth-of-type(1) p {
-            font-size: 13px !important;
+        /* Thu nhỏ chữ các nút bấm để vừa khít màn hình ngang */
+        div[data-testid="stHorizontalBlock"] button {
+            padding: 5px 5px !important;
+            font-size: 12px !important;
         }
-        .main div[data-testid="stHorizontalBlock"]:nth-of-type(1) button,
-        .main div[data-testid="stHorizontalBlock"]:nth-of-type(2) button {
-            padding-left: 2px !important;
-            padding-right: 2px !important;
+        /* Thu nhỏ chữ Tên Staff */
+        div[data-testid="stHorizontalBlock"] p {
             font-size: 13px !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
         }
     }
 </style>
@@ -209,7 +207,7 @@ if not st.session_state['logged_in']:
 
 # --- MÀN HÌNH CHÍNH APP ---
 else:
-    # 1. KHỐI HEADER (Sẽ tự động nằm ngang nhờ CSS)
+    # 1. KHỐI HEADER
     col_hdr1, col_hdr2, col_hdr3 = st.columns([4, 3, 3])
     with col_hdr1:
         st.write(f"Đang trực: **{st.session_state['staff_name']}**")
@@ -238,13 +236,22 @@ else:
         st.error(f"Lỗi khi tải dữ liệu: {e}")
         st.stop()
 
-    # 2. KHỐI ĐIỀU HƯỚNG TAB (Sẽ tự động nằm ngang và đổi màu nhờ CSS)
+    # 2. KHỐI ĐIỀU HƯỚNG TAB 
     tab_col1, tab_col2 = st.columns(2)
     with tab_col1:
+        # Nếu Tab 1 đang mở -> Chèn mã ẩn để CSS đổi màu nút này thành Vàng
+        if st.session_state['active_tab'] == "CHECK-IN":
+            st.markdown('<span class="active-tab-marker" style="display:none;"></span>', unsafe_allow_html=True)
+            
         if st.button("📌 MÀN HÌNH CHECK-IN", type="primary" if st.session_state['active_tab'] == "CHECK-IN" else "secondary", use_container_width=True):
             st.session_state['active_tab'] = "CHECK-IN"
             st.rerun()
+            
     with tab_col2:
+        # Nếu Tab 2 đang mở -> Chèn mã ẩn để CSS đổi màu nút này thành Vàng
+        if st.session_state['active_tab'] == "DOORGIFT":
+            st.markdown('<span class="active-tab-marker" style="display:none;"></span>', unsafe_allow_html=True)
+            
         if st.button("🎁 MÀN HÌNH DOORGIFT", type="primary" if st.session_state['active_tab'] == "DOORGIFT" else "secondary", use_container_width=True):
             st.session_state['active_tab'] = "DOORGIFT"
             st.rerun()
