@@ -5,7 +5,7 @@ from google.oauth2.service_account import Credentials
 from datetime import datetime, timedelta
 
 # --- CẤU HÌNH TRANG ---
-st.set_page_config(page_title="Checkin LBP", page_icon="🌱", layout="centered")
+st.set_page_config(page_title="Hệ thống Trại Hè", page_icon="🏕️", layout="centered")
 
 # --- KẾT NỐI GOOGLE SHEETS TỪ SECRETS ---
 SHEET_ID = "1D8wxawBJ97qLiBAd2ym9XNMcXzDd_zBy3INi3_sIom8"
@@ -70,13 +70,21 @@ def format_time_vn(time_str):
     except:
         return time_str
 
-# --- CACHE QUẢN LÝ TRẠNG THÁI ---
+# --- CACHE QUẢN LÝ TRẠNG THÁI & KEY ĐỘNG (XÓA INPUT) ---
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 if 'staff_name' not in st.session_state:
     st.session_state['staff_name'] = ""
 if 'goi_cham_nhan_qua' not in st.session_state:
     st.session_state['goi_cham_nhan_qua'] = False
+
+# Dynamic keys để reset ô text input mà không bị lỗi API Exception
+if 'chk_key' not in st.session_state:
+    st.session_state['chk_key'] = 0
+if 'gift_key' not in st.session_state:
+    st.session_state['gift_key'] = 0
+if 'success_msg' not in st.session_state:
+    st.session_state['success_msg'] = ""
 
 # --- CSS TÙY CHỈNH ---
 css = """
@@ -94,24 +102,29 @@ css = """
         background-color: #4caf50 !important; color: white !important; border: none !important; font-weight: bold; border-radius: 8px;
     }
     
+    /* Thiết kế Card thống kê chuẩn Theme Xanh - Vàng, thanh lịch */
     .stat-container {
-        display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;
+        display: flex; gap: 20px; margin-bottom: 25px; flex-wrap: wrap;
     }
     .stat-box {
-        flex: 1; min-width: 140px; background: linear-gradient(135deg, #d4fc79 0%, #96e6a1 100%);
-        padding: 20px; border-radius: 15px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        flex: 1; min-width: 140px; background: #ffffff;
+        padding: 20px; border-radius: 12px; text-align: center; 
+        box-shadow: 0 4px 12px rgba(0,0,0,0.06); border: 1px solid #eeeeee;
     }
-    .stat-box.red-theme {
-        background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
-    }
+    .stat-box.green-theme { border-top: 5px solid #4caf50; }
+    .stat-box.yellow-theme { border-top: 5px solid #fbc02d; }
+    
     .stat-number {
-        font-size: 36px; font-weight: 900; color: #2e7d32; line-height: 1.2;
+        font-size: 38px; font-weight: 800; line-height: 1.2;
     }
-    .red-theme .stat-number { color: #d32f2f; }
+    .green-theme .stat-number { color: #2e7d32; }
+    .yellow-theme .stat-number { color: #f57f17; } /* Dùng vàng cam đậm để dễ đọc số */
+    
     .stat-label {
-        font-size: 15px; font-weight: 600; color: #333; margin-top: 5px;
+        font-size: 14px; font-weight: 600; color: #666; text-transform: uppercase; margin-top: 8px; letter-spacing: 0.5px;
     }
 
+    /* Card kết quả */
     .user-card {
         background-color: #ffffff; padding: 20px; border-radius: 15px;
         box-shadow: 0 4px 10px rgba(0,0,0,0.08); border-left: 8px solid #4caf50;
@@ -127,7 +140,7 @@ css = """
         display: inline-block; padding: 5px 10px; border-radius: 20px; font-size: 13px; font-weight: bold; margin-top: 5px;
     }
     .bg-green { background-color: #c8e6c9; color: #2e7d32; }
-    .bg-red { background-color: #ffcdd2; color: #c62828; }
+    .bg-yellow { background-color: #fff9c4; color: #f57f17; } /* Thay Đỏ thành Vàng cho hợp theme */
 </style>
 """
 st.markdown(css, unsafe_allow_html=True)
@@ -159,7 +172,6 @@ else:
     with col_hdr1:
         st.write(f"Đang trực: **{st.session_state['staff_name']}**")
     with col_hdr2:
-        # Nút xám basic nhờ dùng type="secondary"
         if st.button("🔄 Cập nhật Data", type="secondary", use_container_width=True):
             refresh_data()
             st.toast("Đã làm mới dữ liệu!")
@@ -171,6 +183,11 @@ else:
             st.rerun()
 
     st.divider()
+    
+    # Hiển thị thông báo thành công nếu có
+    if st.session_state['success_msg']:
+        st.success(st.session_state['success_msg'])
+        st.session_state['success_msg'] = ""
     
     try:
         df = load_data()
@@ -186,9 +203,9 @@ else:
     # TAB 1: CHECK-IN
     # ----------------------------------------
     with tab1:
-        # 1. TÌM KIẾM
+        # 1. TÌM KIẾM (Sử dụng key động để reset)
         st.markdown('<div class="question-text">Chấm. cho mình xin số điện thoại nha:</div>', unsafe_allow_html=True)
-        search_checkin = st.text_input("Nhập 3 số đuôi (hoặc full số):", key="search_checkin").strip()
+        search_checkin = st.text_input("Nhập 3 số đuôi (hoặc full số):", key=f"search_checkin_{st.session_state['chk_key']}").strip()
         
         if search_checkin:
             results = df[df['SDT'].str.endswith(search_checkin)]
@@ -214,24 +231,23 @@ else:
                         if st.button("Check in", key=f"btn_chk_{sheet_row}", type="primary", use_container_width=True):
                             with st.spinner("Đang cập nhật..."):
                                 update_checkin_to_sheet(sheet_row, st.session_state['staff_name'])
-                                st.success("Đã cập nhật lên hệ thống thành công!")
-                                # Xóa ô tìm kiếm sau khi check in xong
-                                st.session_state['search_checkin'] = ""
+                                st.session_state['success_msg'] = "Đã cập nhật lên hệ thống thành công!"
+                                st.session_state['chk_key'] += 1  # Đổi key để clear text box
                                 st.rerun()
 
         st.divider()
 
-        # 2. THỐNG KÊ
+        # 2. THỐNG KÊ (CSS mới: Trắng + Xanh/Vàng)
         total_checked = len(df[df['Đã check'] == True])
         total_unchecked = len(df[df['Đã check'] == False])
         
         st.markdown(f"""
         <div class="stat-container">
-            <div class="stat-box">
+            <div class="stat-box green-theme">
                 <div class="stat-number">{total_checked}</div>
                 <div class="stat-label">Số Chấm. đã checkin</div>
             </div>
-            <div class="stat-box red-theme">
+            <div class="stat-box yellow-theme">
                 <div class="stat-number">{total_unchecked}</div>
                 <div class="stat-label">Số Chấm. chưa checkin</div>
             </div>
@@ -240,6 +256,8 @@ else:
         
         with st.expander("📝 Xem danh sách Chấm. chưa checkin"):
             df_chuacheck = df[df['Đã check'] == False][['Tên', 'SDT']]
+            # Ép kiểu string 1 lần nữa cho chắc ăn khi hiển thị trên Dataframe
+            df_chuacheck['SDT'] = df_chuacheck['SDT'].astype(str)
             st.dataframe(df_chuacheck, hide_index=True, use_container_width=True)
 
     # ----------------------------------------
@@ -251,11 +269,9 @@ else:
         # 1. GỌI CHẤM NHẬN QUÀ
         st.markdown('### 🎯 Phát quà theo thứ tự')
         
-        # Nút để bắt đầu gọi người tiếp theo
         if st.button("Gọi Chấm nhận quà", type="primary", use_container_width=True):
             st.session_state['goi_cham_nhan_qua'] = True
 
-        # Nếu đã bấm nút gọi, thì hiện thông tin và nút Tặng
         if st.session_state.get('goi_cham_nhan_qua', False):
             df_chua_nhan = df_checked_in[df_checked_in['Đã nhận gift'] == False].copy()
             
@@ -283,8 +299,8 @@ else:
                     if st.button("Tặng doorgift", key=f"btn_gift_auto_{sheet_row}", type="primary", use_container_width=True):
                         with st.spinner("Đang ghi nhận..."):
                             update_doorgift_to_sheet(sheet_row, st.session_state['staff_name'])
-                            st.success("Đã cập nhật lên hệ thống thành công!")
-                            st.session_state['goi_cham_nhan_qua'] = False # Tắt hiển thị gọi sau khi đã tặng
+                            st.session_state['success_msg'] = "Đã cập nhật lên hệ thống thành công!"
+                            st.session_state['goi_cham_nhan_qua'] = False 
                             st.rerun()
                 with col_btn2:
                     if st.button("Đóng", type="secondary", use_container_width=True):
@@ -295,7 +311,7 @@ else:
         
         # 2. SEARCH THỦ CÔNG
         st.markdown('### 🔍 Tìm kiếm thủ công')
-        search_gift = st.text_input("Nhập 3 số đuôi SĐT để kiểm tra nhận quà:", key="search_gift").strip()
+        search_gift = st.text_input("Nhập 3 số đuôi SĐT để kiểm tra nhận quà:", key=f"search_gift_{st.session_state['gift_key']}").strip()
         
         if search_gift:
             results_gift = df_checked_in[df_checked_in['SDT'].str.endswith(search_gift)]
@@ -314,15 +330,15 @@ else:
                     
                     if row['Đã nhận gift'] == True:
                         time_gift = format_time_vn(row['Time nhận gift'])
-                        st.markdown(f'<p><span class="status-badge bg-red">ĐÃ LẤY QUÀ lúc {time_gift}</span></p>', unsafe_allow_html=True)
+                        st.markdown(f'<p><span class="status-badge bg-green">ĐÃ LẤY QUÀ lúc {time_gift}</span></p>', unsafe_allow_html=True)
                         st.markdown('</div>', unsafe_allow_html=True)
                     else:
-                        st.markdown('<p><span class="status-badge bg-green">CHƯA LẤY QUÀ</span></p>', unsafe_allow_html=True)
+                        st.markdown('<p><span class="status-badge bg-yellow">CHƯA LẤY QUÀ</span></p>', unsafe_allow_html=True)
                         st.markdown('</div>', unsafe_allow_html=True)
                         
                         if st.button("Tặng doorgift", key=f"btn_gift_manual_{sheet_row}", type="primary", use_container_width=True):
                             with st.spinner("Đang cập nhật..."):
                                 update_doorgift_to_sheet(sheet_row, st.session_state['staff_name'])
-                                st.success("Đã cập nhật lên hệ thống thành công!")
-                                st.session_state['search_gift'] = ""
+                                st.session_state['success_msg'] = "Đã cập nhật lên hệ thống thành công!"
+                                st.session_state['gift_key'] += 1
                                 st.rerun()
