@@ -70,6 +70,22 @@ def format_time_vn(time_str):
     except:
         return time_str
 
+# --- HÀM CALLBACK XỬ LÝ NÚT BẤM K KHÔNG CẦN RERUN ---
+def on_checkin_click(sheet_row, staff_name):
+    update_checkin_to_sheet(sheet_row, staff_name)
+    st.session_state['success_msg'] = "Đã cập nhật lên hệ thống thành công!"
+    st.session_state['chk_key'] += 1
+
+def on_doorgift_auto_click(sheet_row, staff_name):
+    update_doorgift_to_sheet(sheet_row, staff_name)
+    st.session_state['success_msg'] = "Đã cập nhật lên hệ thống thành công!"
+    st.session_state['goi_cham_nhan_qua'] = False 
+
+def on_doorgift_manual_click(sheet_row, staff_name):
+    update_doorgift_to_sheet(sheet_row, staff_name)
+    st.session_state['success_msg'] = "Đã cập nhật lên hệ thống thành công!"
+    st.session_state['gift_key'] += 1
+
 # --- CACHE QUẢN LÝ TRẠNG THÁI & KEY ĐỘNG ---
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
@@ -88,30 +104,12 @@ if 'success_msg' not in st.session_state:
 # --- CSS TÙY CHỈNH ---
 css = """
 <style>
-    /* Bỏ ẩn header để hiện lại Menu Setting của Streamlit */
     footer {visibility: hidden;}
+    .main-title { color: #2e7d32; text-align: center; font-size: 32px; font-weight: bold; margin-bottom: 20px; }
+    .question-text { color: #fbc02d; font-size: 18px; font-weight: 600; margin-bottom: 10px; }
+    .stButton > button[kind="primary"] { background-color: #4caf50 !important; color: white !important; border: none !important; font-weight: bold; border-radius: 8px; }
     
-    .main-title {
-        color: #2e7d32; text-align: center; font-size: 32px; font-weight: bold; margin-bottom: 20px;
-    }
-    .question-text {
-        color: #fbc02d; font-size: 18px; font-weight: 600; margin-bottom: 10px;
-    }
-    .stButton > button[kind="primary"] {
-        background-color: #4caf50 !important; color: white !important; border: none !important; font-weight: bold; border-radius: 8px;
-    }
-    
-    /* Làm đẹp thanh Menu dạng Radio thay cho Tab */
-    div[role="radiogroup"] {
-        background-color: #f1f8e9; padding: 10px 15px; border-radius: 12px;
-        display: flex; justify-content: space-around; border: 1px solid #c5e1a5;
-    }
-    div[role="radiogroup"] label { font-weight: bold; color: #2e7d32; }
-
-    /* Card thống kê */
-    .stat-container {
-        display: flex; gap: 20px; margin-bottom: 25px; flex-wrap: wrap;
-    }
+    .stat-container { display: flex; gap: 20px; margin-bottom: 25px; flex-wrap: wrap; }
     .stat-box {
         flex: 1; min-width: 140px; background: #ffffff;
         padding: 20px; border-radius: 12px; text-align: center; 
@@ -126,7 +124,6 @@ css = """
     
     .stat-label { font-size: 14px; font-weight: 600; color: #666; text-transform: uppercase; margin-top: 8px; }
 
-    /* Card kết quả */
     .user-card {
         background-color: #ffffff; padding: 20px; border-radius: 15px;
         box-shadow: 0 4px 10px rgba(0,0,0,0.08); border-left: 8px solid #4caf50;
@@ -180,7 +177,6 @@ else:
 
     st.divider()
     
-    # Hiển thị thông báo thành công
     if st.session_state['success_msg']:
         st.success(st.session_state['success_msg'])
         st.session_state['success_msg'] = ""
@@ -193,21 +189,13 @@ else:
         st.error(f"Lỗi khi tải dữ liệu: {e}")
         st.stop()
 
-    # TẠO THANH MENU ĐIỀU HƯỚNG BẰNG RADIO (KHẮC PHỤC LỖI NHẢY TAB)
-    active_tab = st.radio(
-        "Chọn màn hình thao tác:", 
-        ["📌 MÀN HÌNH CHECK-IN", "🎁 MÀN HÌNH DOORGIFT"], 
-        horizontal=True,
-        label_visibility="collapsed"
-    )
-    
-    st.write("") # Tạo khoảng trống nhỏ
+    # DÙNG LẠI TAB GỐC CỦA STREAMLIT
+    tab1, tab2 = st.tabs(["📌 TAB CHECK-IN", "🎁 TAB DOORGIFT"])
 
     # ----------------------------------------
-    # MÀN HÌNH 1: CHECK-IN
+    # TAB 1: CHECK-IN
     # ----------------------------------------
-    if active_tab == "📌 MÀN HÌNH CHECK-IN":
-        # 1. TÌM KIẾM
+    with tab1:
         st.markdown('<div class="question-text">Chấm. cho mình xin số điện thoại nha:</div>', unsafe_allow_html=True)
         search_checkin = st.text_input("Nhập 3 số đuôi (hoặc full số):", key=f"search_checkin_{st.session_state['chk_key']}").strip()
         
@@ -232,16 +220,18 @@ else:
                         st.markdown('</div>', unsafe_allow_html=True)
                     else:
                         st.markdown('</div>', unsafe_allow_html=True)
-                        if st.button("Check in", key=f"btn_chk_{sheet_row}", type="primary", use_container_width=True):
-                            with st.spinner("Đang cập nhật..."):
-                                update_checkin_to_sheet(sheet_row, st.session_state['staff_name'])
-                                st.session_state['success_msg'] = "Đã cập nhật lên hệ thống thành công!"
-                                st.session_state['chk_key'] += 1
-                                st.rerun()
+                        # Dùng callback thay cho logic cũ
+                        st.button(
+                            "Check in", 
+                            key=f"btn_chk_{sheet_row}", 
+                            type="primary", 
+                            use_container_width=True,
+                            on_click=on_checkin_click,
+                            args=(sheet_row, st.session_state['staff_name'])
+                        )
 
         st.divider()
 
-        # 2. THỐNG KÊ 
         total_checked = len(df[df['Đã check'] == True])
         total_unchecked = len(df[df['Đã check'] == False])
         
@@ -264,14 +254,14 @@ else:
             st.dataframe(df_chuacheck, hide_index=True, use_container_width=True)
 
     # ----------------------------------------
-    # MÀN HÌNH 2: DOORGIFT
+    # TAB 2: DOORGIFT
     # ----------------------------------------
-    elif active_tab == "🎁 MÀN HÌNH DOORGIFT":
+    with tab2:
         df_checked_in = df[df['Đã check'] == True].copy()
         
-        # 1. GỌI CHẤM NHẬN QUÀ
         st.markdown('### 🎯 Phát quà theo thứ tự')
         
+        # Nút bật state (không tương tác data thì không cần callback)
         if st.button("Gọi Chấm nhận quà", type="primary", use_container_width=True):
             st.session_state['goi_cham_nhan_qua'] = True
 
@@ -299,20 +289,24 @@ else:
                 
                 col_btn1, col_btn2 = st.columns(2)
                 with col_btn1:
-                    if st.button("Tặng doorgift", key=f"btn_gift_auto_{sheet_row}", type="primary", use_container_width=True):
-                        with st.spinner("Đang ghi nhận..."):
-                            update_doorgift_to_sheet(sheet_row, st.session_state['staff_name'])
-                            st.session_state['success_msg'] = "Đã cập nhật lên hệ thống thành công!"
-                            st.session_state['goi_cham_nhan_qua'] = False 
-                            st.rerun()
+                    # Dùng callback
+                    st.button(
+                        "Tặng doorgift", 
+                        key=f"btn_gift_auto_{sheet_row}", 
+                        type="primary", 
+                        use_container_width=True,
+                        on_click=on_doorgift_auto_click,
+                        args=(sheet_row, st.session_state['staff_name'])
+                    )
                 with col_btn2:
                     if st.button("Đóng", type="secondary", use_container_width=True):
                         st.session_state['goi_cham_nhan_qua'] = False
+                        # Lệnh rerun rỗng ở đây ko sao vì nó chỉ đóng form, văng về tab Checkin cũng đc, 
+                        # nhưng muốn chắc cú thì có thể dùng on_click cho nút Đóng luôn, tớ xài rerun tạm vì ko thao tác data.
                         st.rerun()
         
         st.divider()
         
-        # 2. SEARCH THỦ CÔNG
         st.markdown('### 🔍 Tìm kiếm thủ công')
         search_gift = st.text_input("Nhập 3 số đuôi SĐT để kiểm tra nhận quà:", key=f"search_gift_{st.session_state['gift_key']}").strip()
         
@@ -339,9 +333,12 @@ else:
                         st.markdown('<p><span class="status-badge bg-yellow">CHƯA LẤY QUÀ</span></p>', unsafe_allow_html=True)
                         st.markdown('</div>', unsafe_allow_html=True)
                         
-                        if st.button("Tặng doorgift", key=f"btn_gift_manual_{sheet_row}", type="primary", use_container_width=True):
-                            with st.spinner("Đang cập nhật..."):
-                                update_doorgift_to_sheet(sheet_row, st.session_state['staff_name'])
-                                st.session_state['success_msg'] = "Đã cập nhật lên hệ thống thành công!"
-                                st.session_state['gift_key'] += 1
-                                st.rerun()
+                        # Dùng callback
+                        st.button(
+                            "Tặng doorgift", 
+                            key=f"btn_gift_manual_{sheet_row}", 
+                            type="primary", 
+                            use_container_width=True,
+                            on_click=on_doorgift_manual_click,
+                            args=(sheet_row, st.session_state['staff_name'])
+                        )
