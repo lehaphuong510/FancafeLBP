@@ -24,6 +24,7 @@ def get_gspread_client():
     return gspread.authorize(creds)
 
 def fix_phone_number(phone):
+    """Hàm xử lý triệt để việc mất số 0 ở SĐT"""
     p = str(phone).replace('.0', '').strip()
     if p and p != 'nan' and p != 'None' and not p.startswith('0'):
         return '0' + p
@@ -37,7 +38,9 @@ def load_data():
     sheet = client.open_by_key(SHEET_ID).worksheet(TAB_NAME)
     data = sheet.get_all_records(value_render_option='FORMATTED_VALUE')
     df = pd.DataFrame(data)
+    
     df['SheetRow'] = df.index + 2 
+    
     if 'SDT' in df.columns:
         df['SDT'] = df['SDT'].apply(fix_phone_number)
     return df
@@ -67,17 +70,11 @@ def format_time_vn(time_str):
     except:
         return time_str
 
-# --- CÁC HÀM CALLBACK CHẠY NGẦM MƯỢT MÀ ---
+# --- HÀM CALLBACK XỬ LÝ NÚT BẤM K KHÔNG CẦN RERUN ---
 def on_checkin_click(sheet_row, staff_name):
     update_checkin_to_sheet(sheet_row, staff_name)
     st.session_state['success_msg'] = "Đã cập nhật lên hệ thống thành công!"
-    st.session_state['inp_search_checkin'] = "" 
-
-def on_goi_cham_click():
-    st.session_state['goi_cham_nhan_qua'] = True
-
-def on_dong_goi_cham_click():
-    st.session_state['goi_cham_nhan_qua'] = False
+    st.session_state['chk_key'] += 1
 
 def on_doorgift_auto_click(sheet_row, staff_name):
     update_doorgift_to_sheet(sheet_row, staff_name)
@@ -87,60 +84,56 @@ def on_doorgift_auto_click(sheet_row, staff_name):
 def on_doorgift_manual_click(sheet_row, staff_name):
     update_doorgift_to_sheet(sheet_row, staff_name)
     st.session_state['success_msg'] = "Đã cập nhật lên hệ thống thành công!"
-    st.session_state['inp_search_gift'] = ""
+    st.session_state['gift_key'] += 1
 
-# --- CACHE QUẢN LÝ TRẠNG THÁI ---
+# --- CACHE QUẢN LÝ TRẠNG THÁI & KEY ĐỘNG ---
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 if 'staff_name' not in st.session_state:
     st.session_state['staff_name'] = ""
 if 'goi_cham_nhan_qua' not in st.session_state:
     st.session_state['goi_cham_nhan_qua'] = False
+
+if 'chk_key' not in st.session_state:
+    st.session_state['chk_key'] = 0
+if 'gift_key' not in st.session_state:
+    st.session_state['gift_key'] = 0
 if 'success_msg' not in st.session_state:
     st.session_state['success_msg'] = ""
-if 'active_tab' not in st.session_state:
-    st.session_state['active_tab'] = "CHECK-IN"
-if 'inp_search_checkin' not in st.session_state:
-    st.session_state['inp_search_checkin'] = ""
-if 'inp_search_gift' not in st.session_state:
-    st.session_state['inp_search_gift'] = ""
 
-# --- CSS TÙY CHỈNH CHUNG ---
+# --- CSS TÙY CHỈNH ---
 css = """
 <style>
     footer {visibility: hidden;}
     .main-title { color: #2e7d32; text-align: center; font-size: 32px; font-weight: bold; margin-bottom: 20px; }
     .question-text { color: #fbc02d; font-size: 18px; font-weight: 600; margin-bottom: 10px; }
+    .stButton > button[kind="primary"] { background-color: #4caf50 !important; color: white !important; border: none !important; font-weight: bold; border-radius: 8px; }
     
-    /* Giao diện Card thống kê */
-    .stat-container { display: flex; gap: 15px; margin-bottom: 25px; flex-wrap: wrap; }
-    .stat-box { flex: 1; min-width: 140px; background: #ffffff; padding: 15px; border-radius: 12px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.06); border: 1px solid #eeeeee; }
+    .stat-container { display: flex; gap: 20px; margin-bottom: 25px; flex-wrap: wrap; }
+    .stat-box {
+        flex: 1; min-width: 140px; background: #ffffff;
+        padding: 20px; border-radius: 12px; text-align: center; 
+        box-shadow: 0 4px 12px rgba(0,0,0,0.06); border: 1px solid #eeeeee;
+    }
     .stat-box.green-theme { border-top: 5px solid #4caf50; }
     .stat-box.yellow-theme { border-top: 5px solid #fbc02d; }
-    .stat-number { font-size: 32px; font-weight: 800; line-height: 1.2; }
+    
+    .stat-number { font-size: 38px; font-weight: 800; line-height: 1.2; }
     .green-theme .stat-number { color: #2e7d32; }
     .yellow-theme .stat-number { color: #f57f17; }
-    .stat-label { font-size: 13px; font-weight: 600; color: #666; text-transform: uppercase; margin-top: 8px; }
+    
+    .stat-label { font-size: 14px; font-weight: 600; color: #666; text-transform: uppercase; margin-top: 8px; }
 
-    /* Card kết quả */
-    .user-card { background-color: #ffffff; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); border-left: 8px solid #4caf50; margin-bottom: 15px; border-top: 1px solid #eee; border-right: 1px solid #eee; border-bottom: 1px solid #eee; }
+    .user-card {
+        background-color: #ffffff; padding: 20px; border-radius: 15px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.08); border-left: 8px solid #4caf50;
+        margin-bottom: 15px; border-top: 1px solid #eee; border-right: 1px solid #eee; border-bottom: 1px solid #eee;
+    }
     .user-card h4 { color: #2e7d32; margin-top: 0; margin-bottom: 8px; font-size: 22px; }
     .user-card p { margin: 5px 0; font-size: 16px; color: #555; }
     .status-badge { display: inline-block; padding: 5px 10px; border-radius: 20px; font-size: 13px; font-weight: bold; margin-top: 5px; }
     .bg-green { background-color: #c8e6c9; color: #2e7d32; }
     .bg-yellow { background-color: #fff9c4; color: #f57f17; }
-
-    /* NÚT THỰC THI (Check in, Tặng quà) TỰ ĐỘNG THÀNH XANH LÁ */
-    .stButton > button[kind="primary"] { 
-        background-color: #4caf50 !important; 
-        color: white !important; 
-        border: none !important; 
-        font-weight: bold; 
-        border-radius: 8px; 
-    }
-    .stButton > button[kind="primary"]:hover {
-        background-color: #388e3c !important; 
-    }
 </style>
 """
 st.markdown(css, unsafe_allow_html=True)
@@ -168,12 +161,11 @@ if not st.session_state['logged_in']:
 
 # --- MÀN HÌNH CHÍNH APP ---
 else:
-    # 1. KHỐI HEADER
     col_hdr1, col_hdr2, col_hdr3 = st.columns([4, 3, 3])
     with col_hdr1:
-        st.write(f"Trực: **{st.session_state['staff_name']}**")
+        st.write(f"Đang trực: **{st.session_state['staff_name']}**")
     with col_hdr2:
-        if st.button("🔄 Cập nhật", type="secondary", use_container_width=True):
+        if st.button("🔄 Cập nhật Data", type="secondary", use_container_width=True):
             refresh_data()
             st.toast("Đã làm mới dữ liệu!")
     with col_hdr3:
@@ -197,44 +189,15 @@ else:
         st.error(f"Lỗi khi tải dữ liệu: {e}")
         st.stop()
 
-    # 2. KHỐI ĐIỀU HƯỚNG TAB
-    tab_col1, tab_col2 = st.columns(2)
-    with tab_col1:
-        # Cả 2 nút Tab đều để type="secondary" (mặc định xám), CSS bên dưới sẽ tự bắt đúng nút để nhuộm vàng
-        if st.button("📌 CHECK-IN", type="secondary", use_container_width=True):
-            st.session_state['active_tab'] = "CHECK-IN"
-            st.rerun()
-            
-    with tab_col2:
-        if st.button("🎁 DOORGIFT", type="secondary", use_container_width=True):
-            st.session_state['active_tab'] = "DOORGIFT"
-            st.rerun()
-
-    # NHUỘM VÀNG TAB ACTIVE (CSS CƠ BẢN SIÊU MẠNH, TƯƠNG THÍCH MỌI TRÌNH DUYỆT)
-    # Nó sẽ chọc thẳng vào dòng column số 2, chọn ra cột 1 hoặc cột 2 để đổi màu.
-    active_idx = 1 if st.session_state.get('active_tab', 'CHECK-IN') == "CHECK-IN" else 2
-    active_tab_css = f"""
-    <style>
-        div[data-testid="stHorizontalBlock"]:nth-of-type(2) div[data-testid="column"]:nth-child({active_idx}) button {{
-            background: linear-gradient(135deg, #fceabb 0%, #f8b500 100%) !important;
-            color: #333 !important;
-            border: none !important;
-            border-bottom: 4px solid #f57f17 !important;
-            font-weight: bold !important;
-            box-shadow: 0 4px 6px rgba(245, 127, 23, 0.3) !important;
-        }}
-    </style>
-    """
-    st.markdown(active_tab_css, unsafe_allow_html=True)
-            
-    st.write("") 
+    # DÙNG LẠI TAB GỐC CỦA STREAMLIT
+    tab1, tab2 = st.tabs(["📌 TAB CHECK-IN", "🎁 TAB DOORGIFT"])
 
     # ----------------------------------------
-    # NỘI DUNG TAB 1: CHECK-IN
+    # TAB 1: CHECK-IN
     # ----------------------------------------
-    if st.session_state['active_tab'] == "CHECK-IN":
+    with tab1:
         st.markdown('<div class="question-text">Chấm. cho mình xin số điện thoại nha:</div>', unsafe_allow_html=True)
-        search_checkin = st.text_input("Nhập 3 số đuôi (hoặc full số):", key="inp_search_checkin").strip()
+        search_checkin = st.text_input("Nhập 3 số đuôi (hoặc full số):", key=f"search_checkin_{st.session_state['chk_key']}").strip()
         
         if search_checkin:
             results = df[df['SDT'].str.endswith(search_checkin)]
@@ -257,7 +220,7 @@ else:
                         st.markdown('</div>', unsafe_allow_html=True)
                     else:
                         st.markdown('</div>', unsafe_allow_html=True)
-                        # Nút Action Check In type="primary" sẽ được nhuộm Xanh lá từ dòng CSS chung
+                        # Dùng callback thay cho logic cũ
                         st.button(
                             "Check in", 
                             key=f"btn_chk_{sheet_row}", 
@@ -291,19 +254,16 @@ else:
             st.dataframe(df_chuacheck, hide_index=True, use_container_width=True)
 
     # ----------------------------------------
-    # NỘI DUNG TAB 2: DOORGIFT
+    # TAB 2: DOORGIFT
     # ----------------------------------------
-    elif st.session_state['active_tab'] == "DOORGIFT":
+    with tab2:
         df_checked_in = df[df['Đã check'] == True].copy()
         
         st.markdown('### 🎯 Phát quà theo thứ tự')
         
-        st.button(
-            "Gọi Chấm nhận quà", 
-            type="primary", 
-            use_container_width=True,
-            on_click=on_goi_cham_click
-        )
+        # Nút bật state (không tương tác data thì không cần callback)
+        if st.button("Gọi Chấm nhận quà", type="primary", use_container_width=True):
+            st.session_state['goi_cham_nhan_qua'] = True
 
         if st.session_state.get('goi_cham_nhan_qua', False):
             df_chua_nhan = df_checked_in[df_checked_in['Đã nhận gift'] == False].copy()
@@ -329,6 +289,7 @@ else:
                 
                 col_btn1, col_btn2 = st.columns(2)
                 with col_btn1:
+                    # Dùng callback
                     st.button(
                         "Tặng doorgift", 
                         key=f"btn_gift_auto_{sheet_row}", 
@@ -338,17 +299,16 @@ else:
                         args=(sheet_row, st.session_state['staff_name'])
                     )
                 with col_btn2:
-                    st.button(
-                        "Đóng", 
-                        type="secondary", 
-                        use_container_width=True,
-                        on_click=on_dong_goi_cham_click
-                    )
+                    if st.button("Đóng", type="secondary", use_container_width=True):
+                        st.session_state['goi_cham_nhan_qua'] = False
+                        # Lệnh rerun rỗng ở đây ko sao vì nó chỉ đóng form, văng về tab Checkin cũng đc, 
+                        # nhưng muốn chắc cú thì có thể dùng on_click cho nút Đóng luôn, tớ xài rerun tạm vì ko thao tác data.
+                        st.rerun()
         
         st.divider()
         
         st.markdown('### 🔍 Tìm kiếm thủ công')
-        search_gift = st.text_input("Nhập 3 số đuôi SĐT để kiểm tra nhận quà:", key="inp_search_gift").strip()
+        search_gift = st.text_input("Nhập 3 số đuôi SĐT để kiểm tra nhận quà:", key=f"search_gift_{st.session_state['gift_key']}").strip()
         
         if search_gift:
             results_gift = df_checked_in[df_checked_in['SDT'].str.endswith(search_gift)]
@@ -373,6 +333,7 @@ else:
                         st.markdown('<p><span class="status-badge bg-yellow">CHƯA LẤY QUÀ</span></p>', unsafe_allow_html=True)
                         st.markdown('</div>', unsafe_allow_html=True)
                         
+                        # Dùng callback
                         st.button(
                             "Tặng doorgift", 
                             key=f"btn_gift_manual_{sheet_row}", 
