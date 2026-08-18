@@ -104,7 +104,6 @@ if 'success_msg' not in st.session_state:
 if 'active_tab' not in st.session_state:
     st.session_state['active_tab'] = "CHECK-IN"
 
-# Khởi tạo giá trị rỗng cho ô Input để xóa dễ dàng
 if 'inp_search_checkin' not in st.session_state:
     st.session_state['inp_search_checkin'] = ""
 if 'inp_search_gift' not in st.session_state:
@@ -117,35 +116,72 @@ css = """
     .main-title { color: #2e7d32; text-align: center; font-size: 32px; font-weight: bold; margin-bottom: 20px; }
     .question-text { color: #fbc02d; font-size: 18px; font-weight: 600; margin-bottom: 10px; }
     
-    /* Chỉ làm nổi bật các nút Primary, các nút Secondary sẽ giữ nguyên xám basic của hệ thống */
-    .stButton > button[kind="primary"] { background-color: #4caf50 !important; color: white !important; border: none !important; font-weight: bold; border-radius: 8px; }
-    
     /* Giao diện Card thống kê */
     .stat-container { display: flex; gap: 20px; margin-bottom: 25px; flex-wrap: wrap; }
-    .stat-box {
-        flex: 1; min-width: 140px; background: #ffffff;
-        padding: 20px; border-radius: 12px; text-align: center; 
-        box-shadow: 0 4px 12px rgba(0,0,0,0.06); border: 1px solid #eeeeee;
-    }
+    .stat-box { flex: 1; min-width: 140px; background: #ffffff; padding: 20px; border-radius: 12px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.06); border: 1px solid #eeeeee; }
     .stat-box.green-theme { border-top: 5px solid #4caf50; }
     .stat-box.yellow-theme { border-top: 5px solid #fbc02d; }
-    
     .stat-number { font-size: 38px; font-weight: 800; line-height: 1.2; }
     .green-theme .stat-number { color: #2e7d32; }
     .yellow-theme .stat-number { color: #f57f17; }
     .stat-label { font-size: 14px; font-weight: 600; color: #666; text-transform: uppercase; margin-top: 8px; }
 
     /* Card kết quả */
-    .user-card {
-        background-color: #ffffff; padding: 20px; border-radius: 15px;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.08); border-left: 8px solid #4caf50;
-        margin-bottom: 15px; border-top: 1px solid #eee; border-right: 1px solid #eee; border-bottom: 1px solid #eee;
-    }
+    .user-card { background-color: #ffffff; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); border-left: 8px solid #4caf50; margin-bottom: 15px; border-top: 1px solid #eee; border-right: 1px solid #eee; border-bottom: 1px solid #eee; }
     .user-card h4 { color: #2e7d32; margin-top: 0; margin-bottom: 8px; font-size: 22px; }
     .user-card p { margin: 5px 0; font-size: 16px; color: #555; }
     .status-badge { display: inline-block; padding: 5px 10px; border-radius: 20px; font-size: 13px; font-weight: bold; margin-top: 5px; }
     .bg-green { background-color: #c8e6c9; color: #2e7d32; }
     .bg-yellow { background-color: #fff9c4; color: #f57f17; }
+
+    /* =========================================
+       MÀU SẮC NÚT (BUTTONS) 
+       ========================================= */
+    /* 1. Mặc định tất cả nút Primary (Check in, Tặng quà) là XANH LÁ */
+    .stButton > button[kind="primary"] { 
+        background-color: #4caf50 !important; 
+        color: white !important; 
+        border: none !important; 
+        font-weight: bold; 
+        border-radius: 8px; 
+    }
+    
+    /* 2. Ép riêng Nút Tab đang Active (Cụm cột số 2) thành VÀNG */
+    .main div[data-testid="stHorizontalBlock"]:nth-of-type(2) button[kind="primary"] {
+        background: linear-gradient(135deg, #fceabb 0%, #f8b500 100%) !important;
+        color: #333 !important;
+        border-bottom: 3px solid #f57f17 !important;
+    }
+
+    /* =========================================
+       ÉP HÀNG NGANG TRÊN MOBILE (Bất chấp màn hình nhỏ)
+       ========================================= */
+    @media (max-width: 600px) {
+        /* Cụm 1 (Header Cập nhật/Đăng xuất) & Cụm 2 (Tabs) sẽ KHÔNG rớt dòng */
+        .main div[data-testid="stHorizontalBlock"]:nth-of-type(1),
+        .main div[data-testid="stHorizontalBlock"]:nth-of-type(2) {
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+        }
+        
+        /* Chỉnh lại độ rộng cột để nhét vừa trên 1 hàng */
+        .main div[data-testid="stHorizontalBlock"]:nth-of-type(1) > div[data-testid="column"],
+        .main div[data-testid="stHorizontalBlock"]:nth-of-type(2) > div[data-testid="column"] {
+            min-width: 0 !important;
+            padding: 0 4px !important;
+        }
+        
+        /* Thu nhỏ nhẹ font chữ trên mobile để không bị tràn */
+        .main div[data-testid="stHorizontalBlock"]:nth-of-type(1) p {
+            font-size: 13px !important;
+        }
+        .main div[data-testid="stHorizontalBlock"]:nth-of-type(1) button,
+        .main div[data-testid="stHorizontalBlock"]:nth-of-type(2) button {
+            padding-left: 2px !important;
+            padding-right: 2px !important;
+            font-size: 13px !important;
+        }
+    }
 </style>
 """
 st.markdown(css, unsafe_allow_html=True)
@@ -173,7 +209,7 @@ if not st.session_state['logged_in']:
 
 # --- MÀN HÌNH CHÍNH APP ---
 else:
-    # 1. KHỐI HEADER
+    # 1. KHỐI HEADER (Sẽ tự động nằm ngang nhờ CSS)
     col_hdr1, col_hdr2, col_hdr3 = st.columns([4, 3, 3])
     with col_hdr1:
         st.write(f"Đang trực: **{st.session_state['staff_name']}**")
@@ -202,8 +238,7 @@ else:
         st.error(f"Lỗi khi tải dữ liệu: {e}")
         st.stop()
 
-    # 2. KHỐI ĐIỀU HƯỚNG BẰNG BUTTON (GIẢ LẬP GIAO DIỆN TAB)
-    # Lợi ích: Nhớ vị trí vĩnh viễn, không bao giờ bị văng màn hình
+    # 2. KHỐI ĐIỀU HƯỚNG TAB (Sẽ tự động nằm ngang và đổi màu nhờ CSS)
     tab_col1, tab_col2 = st.columns(2)
     with tab_col1:
         if st.button("📌 MÀN HÌNH CHECK-IN", type="primary" if st.session_state['active_tab'] == "CHECK-IN" else "secondary", use_container_width=True):
@@ -214,7 +249,7 @@ else:
             st.session_state['active_tab'] = "DOORGIFT"
             st.rerun()
             
-    st.write("") # Tạo khoảng trắng nhỏ cho thoáng
+    st.write("") 
 
     # ----------------------------------------
     # NỘI DUNG TAB 1: CHECK-IN
