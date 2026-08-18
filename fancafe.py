@@ -70,7 +70,7 @@ def format_time_vn(time_str):
     except:
         return time_str
 
-# --- CACHE QUẢN LÝ TRẠNG THÁI & KEY ĐỘNG (XÓA INPUT) ---
+# --- CACHE QUẢN LÝ TRẠNG THÁI & KEY ĐỘNG ---
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 if 'staff_name' not in st.session_state:
@@ -78,7 +78,6 @@ if 'staff_name' not in st.session_state:
 if 'goi_cham_nhan_qua' not in st.session_state:
     st.session_state['goi_cham_nhan_qua'] = False
 
-# Dynamic keys để reset ô text input mà không bị lỗi API Exception
 if 'chk_key' not in st.session_state:
     st.session_state['chk_key'] = 0
 if 'gift_key' not in st.session_state:
@@ -102,7 +101,14 @@ css = """
         background-color: #4caf50 !important; color: white !important; border: none !important; font-weight: bold; border-radius: 8px;
     }
     
-    /* Thiết kế Card thống kê chuẩn Theme Xanh - Vàng, thanh lịch */
+    /* Làm đẹp thanh Menu dạng Radio thay cho Tab */
+    div[role="radiogroup"] {
+        background-color: #f1f8e9; padding: 10px 15px; border-radius: 12px;
+        display: flex; justify-content: space-around; border: 1px solid #c5e1a5;
+    }
+    div[role="radiogroup"] label { font-weight: bold; color: #2e7d32; }
+
+    /* Card thống kê */
     .stat-container {
         display: flex; gap: 20px; margin-bottom: 25px; flex-wrap: wrap;
     }
@@ -114,15 +120,11 @@ css = """
     .stat-box.green-theme { border-top: 5px solid #4caf50; }
     .stat-box.yellow-theme { border-top: 5px solid #fbc02d; }
     
-    .stat-number {
-        font-size: 38px; font-weight: 800; line-height: 1.2;
-    }
+    .stat-number { font-size: 38px; font-weight: 800; line-height: 1.2; }
     .green-theme .stat-number { color: #2e7d32; }
-    .yellow-theme .stat-number { color: #f57f17; } /* Dùng vàng cam đậm để dễ đọc số */
+    .yellow-theme .stat-number { color: #f57f17; }
     
-    .stat-label {
-        font-size: 14px; font-weight: 600; color: #666; text-transform: uppercase; margin-top: 8px; letter-spacing: 0.5px;
-    }
+    .stat-label { font-size: 14px; font-weight: 600; color: #666; text-transform: uppercase; margin-top: 8px; }
 
     /* Card kết quả */
     .user-card {
@@ -130,17 +132,11 @@ css = """
         box-shadow: 0 4px 10px rgba(0,0,0,0.08); border-left: 8px solid #4caf50;
         margin-bottom: 15px; border-top: 1px solid #eee; border-right: 1px solid #eee; border-bottom: 1px solid #eee;
     }
-    .user-card h4 {
-        color: #2e7d32; margin-top: 0; margin-bottom: 8px; font-size: 22px;
-    }
-    .user-card p {
-        margin: 5px 0; font-size: 16px; color: #555;
-    }
-    .status-badge {
-        display: inline-block; padding: 5px 10px; border-radius: 20px; font-size: 13px; font-weight: bold; margin-top: 5px;
-    }
+    .user-card h4 { color: #2e7d32; margin-top: 0; margin-bottom: 8px; font-size: 22px; }
+    .user-card p { margin: 5px 0; font-size: 16px; color: #555; }
+    .status-badge { display: inline-block; padding: 5px 10px; border-radius: 20px; font-size: 13px; font-weight: bold; margin-top: 5px; }
     .bg-green { background-color: #c8e6c9; color: #2e7d32; }
-    .bg-yellow { background-color: #fff9c4; color: #f57f17; } /* Thay Đỏ thành Vàng cho hợp theme */
+    .bg-yellow { background-color: #fff9c4; color: #f57f17; }
 </style>
 """
 st.markdown(css, unsafe_allow_html=True)
@@ -184,7 +180,7 @@ else:
 
     st.divider()
     
-    # Hiển thị thông báo thành công nếu có
+    # Hiển thị thông báo thành công
     if st.session_state['success_msg']:
         st.success(st.session_state['success_msg'])
         st.session_state['success_msg'] = ""
@@ -197,13 +193,21 @@ else:
         st.error(f"Lỗi khi tải dữ liệu: {e}")
         st.stop()
 
-    tab1, tab2 = st.tabs(["📌 TAB CHECK-IN", "🎁 TAB DOORGIFT"])
+    # TẠO THANH MENU ĐIỀU HƯỚNG BẰNG RADIO (KHẮC PHỤC LỖI NHẢY TAB)
+    active_tab = st.radio(
+        "Chọn màn hình thao tác:", 
+        ["📌 MÀN HÌNH CHECK-IN", "🎁 MÀN HÌNH DOORGIFT"], 
+        horizontal=True,
+        label_visibility="collapsed"
+    )
+    
+    st.write("") # Tạo khoảng trống nhỏ
 
     # ----------------------------------------
-    # TAB 1: CHECK-IN
+    # MÀN HÌNH 1: CHECK-IN
     # ----------------------------------------
-    with tab1:
-        # 1. TÌM KIẾM (Sử dụng key động để reset)
+    if active_tab == "📌 MÀN HÌNH CHECK-IN":
+        # 1. TÌM KIẾM
         st.markdown('<div class="question-text">Chấm. cho mình xin số điện thoại nha:</div>', unsafe_allow_html=True)
         search_checkin = st.text_input("Nhập 3 số đuôi (hoặc full số):", key=f"search_checkin_{st.session_state['chk_key']}").strip()
         
@@ -232,12 +236,12 @@ else:
                             with st.spinner("Đang cập nhật..."):
                                 update_checkin_to_sheet(sheet_row, st.session_state['staff_name'])
                                 st.session_state['success_msg'] = "Đã cập nhật lên hệ thống thành công!"
-                                st.session_state['chk_key'] += 1  # Đổi key để clear text box
+                                st.session_state['chk_key'] += 1
                                 st.rerun()
 
         st.divider()
 
-        # 2. THỐNG KÊ (CSS mới: Trắng + Xanh/Vàng)
+        # 2. THỐNG KÊ 
         total_checked = len(df[df['Đã check'] == True])
         total_unchecked = len(df[df['Đã check'] == False])
         
@@ -256,14 +260,13 @@ else:
         
         with st.expander("📝 Xem danh sách Chấm. chưa checkin"):
             df_chuacheck = df[df['Đã check'] == False][['Tên', 'SDT']]
-            # Ép kiểu string 1 lần nữa cho chắc ăn khi hiển thị trên Dataframe
             df_chuacheck['SDT'] = df_chuacheck['SDT'].astype(str)
             st.dataframe(df_chuacheck, hide_index=True, use_container_width=True)
 
     # ----------------------------------------
-    # TAB 2: DOORGIFT
+    # MÀN HÌNH 2: DOORGIFT
     # ----------------------------------------
-    with tab2:
+    elif active_tab == "🎁 MÀN HÌNH DOORGIFT":
         df_checked_in = df[df['Đã check'] == True].copy()
         
         # 1. GỌI CHẤM NHẬN QUÀ
