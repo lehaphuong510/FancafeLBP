@@ -5,7 +5,7 @@ from google.oauth2.service_account import Credentials
 from datetime import datetime, timedelta
 
 # --- CẤU HÌNH TRANG ---
-st.set_page_config(page_title="Hệ thống Trại Hè", page_icon="🏕️", layout="centered")
+st.set_page_config(page_title="Checkin LBP", page_icon="🌱", layout="centered")
 
 # --- KẾT NỐI GOOGLE SHEETS TỪ SECRETS ---
 SHEET_ID = "1D8wxawBJ97qLiBAd2ym9XNMcXzDd_zBy3INi3_sIom8"
