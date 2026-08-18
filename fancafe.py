@@ -23,20 +23,26 @@ def get_gspread_client():
     )
     return gspread.authorize(creds)
 
+def fix_phone_number(phone):
+    """Hàm xử lý triệt để việc mất số 0 ở SĐT"""
+    p = str(phone).replace('.0', '').strip()
+    if p and p != 'nan' and p != 'None' and not p.startswith('0'):
+        return '0' + p
+    elif p == 'nan' or p == 'None':
+        return ''
+    return p
+
 @st.cache_data(ttl=30) 
 def load_data():
     client = get_gspread_client()
     sheet = client.open_by_key(SHEET_ID).worksheet(TAB_NAME)
-    # Lấy định dạng FORMATTED_VALUE để giữ nguyên số 0 của SĐT và ngày giờ của Sheets
     data = sheet.get_all_records(value_render_option='FORMATTED_VALUE')
     df = pd.DataFrame(data)
     
-    # Tạo cột lưu lại số thứ tự hàng (Row) thực tế trên Sheet để tí nữa update đè không bị lệch
     df['SheetRow'] = df.index + 2 
     
-    # Chuẩn hóa SĐT (phòng hờ)
     if 'SDT' in df.columns:
-        df['SDT'] = df['SDT'].astype(str).str.strip()
+        df['SDT'] = df['SDT'].apply(fix_phone_number)
     return df
 
 def refresh_data():
@@ -64,18 +70,19 @@ def format_time_vn(time_str):
     except:
         return time_str
 
-# --- CACHE QUẢN LÝ ĐĂNG NHẬP ---
+# --- CACHE QUẢN LÝ TRẠNG THÁI ---
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 if 'staff_name' not in st.session_state:
     st.session_state['staff_name'] = ""
+if 'goi_cham_nhan_qua' not in st.session_state:
+    st.session_state['goi_cham_nhan_qua'] = False
 
-# --- CSS TÙY CHỈNH (THÊM CARD UI XINH XẺO) ---
+# --- CSS TÙY CHỈNH ---
 css = """
 <style>
-    #MainMenu {visibility: hidden;}
+    /* Bỏ ẩn header để hiện lại Menu Setting của Streamlit */
     footer {visibility: hidden;}
-    header {visibility: hidden;}
     
     .main-title {
         color: #2e7d32; text-align: center; font-size: 32px; font-weight: bold; margin-bottom: 20px;
@@ -86,11 +93,7 @@ css = """
     .stButton > button[kind="primary"] {
         background-color: #4caf50 !important; color: white !important; border: none !important; font-weight: bold; border-radius: 8px;
     }
-    .stButton > button[kind="secondary"] {
-        background-color: #fbc02d !important; color: #333 !important; border: none !important; font-weight: bold; border-radius: 8px;
-    }
     
-    /* Thiết kế cho Card Thống kê */
     .stat-container {
         display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;
     }
@@ -109,7 +112,6 @@ css = """
         font-size: 15px; font-weight: 600; color: #333; margin-top: 5px;
     }
 
-    /* Thiết kế cho Card Kết quả User */
     .user-card {
         background-color: #ffffff; padding: 20px; border-radius: 15px;
         box-shadow: 0 4px 10px rgba(0,0,0,0.08); border-left: 8px solid #4caf50;
@@ -130,11 +132,11 @@ css = """
 """
 st.markdown(css, unsafe_allow_html=True)
 
-# Hiển thị ảnh cover (Fix lỗi không hiện ảnh - dùng st.image chuẩn)
+# Cover Image
 try:
     st.image("P web cover.jpg", use_container_width=True)
-except Exception as e:
-    st.warning("Không tải được ảnh cover, hãy chắc chắn file 'P web cover.jpg' nằm cùng thư mục code!")
+except Exception:
+    pass
 
 # --- MÀN HÌNH ĐĂNG NHẬP ---
 if not st.session_state['logged_in']:
@@ -153,16 +155,16 @@ if not st.session_state['logged_in']:
 
 # --- MÀN HÌNH CHÍNH APP ---
 else:
-    # Header
-    col_hdr1, col_hdr2, col_hdr3 = st.columns([5, 3, 2])
+    col_hdr1, col_hdr2, col_hdr3 = st.columns([4, 3, 3])
     with col_hdr1:
         st.write(f"Đang trực: **{st.session_state['staff_name']}**")
     with col_hdr2:
-        if st.button("🔄 Cập nhật Data"):
+        # Nút xám basic nhờ dùng type="secondary"
+        if st.button("🔄 Cập nhật Data", type="secondary", use_container_width=True):
             refresh_data()
             st.toast("Đã làm mới dữ liệu!")
     with col_hdr3:
-        if st.button("Đăng xuất"):
+        if st.button("Đăng xuất", type="secondary", use_container_width=True):
             st.session_state['logged_in'] = False
             st.session_state['staff_name'] = ""
             refresh_data()
@@ -170,10 +172,8 @@ else:
 
     st.divider()
     
-    # Load và chuẩn hóa data
     try:
         df = load_data()
-        # Ép kiểu rõ ràng thành Boolean để tránh lỗi logic True/False
         df['Đã check'] = df['Đã check'].astype(str).str.upper().str.strip().map({'TRUE': True, 'FALSE': False}).fillna(False)
         df['Đã nhận gift'] = df['Đã nhận gift'].astype(str).str.upper().str.strip().map({'TRUE': True, 'FALSE': False}).fillna(False)
     except Exception as e:
@@ -186,7 +186,7 @@ else:
     # TAB 1: CHECK-IN
     # ----------------------------------------
     with tab1:
-        # 1. TÌM KIẾM (Đưa lên trên)
+        # 1. TÌM KIẾM
         st.markdown('<div class="question-text">Chấm. cho mình xin số điện thoại nha:</div>', unsafe_allow_html=True)
         search_checkin = st.text_input("Nhập 3 số đuôi (hoặc full số):", key="search_checkin").strip()
         
@@ -199,7 +199,6 @@ else:
                 for idx, row in results.iterrows():
                     sheet_row = row['SheetRow']
                     
-                    # Vẽ Card hiển thị
                     st.markdown(f"""
                     <div class="user-card">
                         <h4>Chấm. {row['Tên']}</h4>
@@ -209,18 +208,20 @@ else:
                     if row['Đã check'] == True:
                         time_format = format_time_vn(row['Time checkin'])
                         st.markdown(f'<p><span class="status-badge bg-green">✅ Đã check-in lúc {time_format} (bởi {row["PIC 1"]})</span></p>', unsafe_allow_html=True)
-                        st.markdown('</div>', unsafe_allow_html=True) # Đóng card
+                        st.markdown('</div>', unsafe_allow_html=True)
                     else:
-                        st.markdown('</div>', unsafe_allow_html=True) # Đóng card trước khi chèn button
-                        if st.button("Đã checkin", key=f"btn_chk_{sheet_row}", type="primary", use_container_width=True):
+                        st.markdown('</div>', unsafe_allow_html=True)
+                        if st.button("Check in", key=f"btn_chk_{sheet_row}", type="primary", use_container_width=True):
                             with st.spinner("Đang cập nhật..."):
                                 update_checkin_to_sheet(sheet_row, st.session_state['staff_name'])
-                                st.success(f"Đã cập nhật hệ thống thành công cho Chấm. {row['Tên']}!")
+                                st.success("Đã cập nhật lên hệ thống thành công!")
+                                # Xóa ô tìm kiếm sau khi check in xong
+                                st.session_state['search_checkin'] = ""
                                 st.rerun()
 
         st.divider()
 
-        # 2. THỐNG KÊ (Đưa xuống dưới, dùng Card CSS xinh xẻo)
+        # 2. THỐNG KÊ
         total_checked = len(df[df['Đã check'] == True])
         total_unchecked = len(df[df['Đã check'] == False])
         
@@ -237,7 +238,6 @@ else:
         </div>
         """, unsafe_allow_html=True)
         
-        # Expander Danh sách chưa checkin (Giữ nguyên số 0)
         with st.expander("📝 Xem danh sách Chấm. chưa checkin"):
             df_chuacheck = df[df['Đã check'] == False][['Tên', 'SDT']]
             st.dataframe(df_chuacheck, hide_index=True, use_container_width=True)
@@ -250,18 +250,24 @@ else:
         
         # 1. GỌI CHẤM NHẬN QUÀ
         st.markdown('### 🎯 Phát quà theo thứ tự')
-        if st.button("Gọi Chấm nhận quà", type="secondary", use_container_width=True):
+        
+        # Nút để bắt đầu gọi người tiếp theo
+        if st.button("Gọi Chấm nhận quà", type="primary", use_container_width=True):
+            st.session_state['goi_cham_nhan_qua'] = True
+
+        # Nếu đã bấm nút gọi, thì hiện thông tin và nút Tặng
+        if st.session_state.get('goi_cham_nhan_qua', False):
             df_chua_nhan = df_checked_in[df_checked_in['Đã nhận gift'] == False].copy()
             
             if df_chua_nhan.empty:
                 st.info("Tất cả những người đã checkin đều đã nhận quà!")
+                st.session_state['goi_cham_nhan_qua'] = False
             else:
-                # Tìm người checkin sớm nhất
                 df_chua_nhan['Time_Obj'] = pd.to_datetime(df_chua_nhan['Time checkin'], dayfirst=True, errors='coerce')
                 df_chua_nhan = df_chua_nhan.sort_values(by='Time_Obj')
                 
                 earliest_person = df_chua_nhan.iloc[0]
-                sheet_row = earliest_person['SheetRow'] # Lấy đúng dòng trên file gốc
+                sheet_row = earliest_person['SheetRow']
                 
                 st.success("Tén tèn ten! Xin mời bạn:")
                 st.markdown(f"""
@@ -272,11 +278,17 @@ else:
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # Sửa lỗi nút không record: dùng biến session_state xử lý (callback form)
-                if st.button("Đã tặng doorgift", key=f"btn_gift_auto_{sheet_row}", type="primary"):
-                    with st.spinner("Đang ghi nhận..."):
-                        update_doorgift_to_sheet(sheet_row, st.session_state['staff_name'])
-                        st.success("Đã ghi nhận tặng quà!")
+                col_btn1, col_btn2 = st.columns(2)
+                with col_btn1:
+                    if st.button("Tặng doorgift", key=f"btn_gift_auto_{sheet_row}", type="primary", use_container_width=True):
+                        with st.spinner("Đang ghi nhận..."):
+                            update_doorgift_to_sheet(sheet_row, st.session_state['staff_name'])
+                            st.success("Đã cập nhật lên hệ thống thành công!")
+                            st.session_state['goi_cham_nhan_qua'] = False # Tắt hiển thị gọi sau khi đã tặng
+                            st.rerun()
+                with col_btn2:
+                    if st.button("Đóng", type="secondary", use_container_width=True):
+                        st.session_state['goi_cham_nhan_qua'] = False
                         st.rerun()
         
         st.divider()
@@ -308,8 +320,9 @@ else:
                         st.markdown('<p><span class="status-badge bg-green">CHƯA LẤY QUÀ</span></p>', unsafe_allow_html=True)
                         st.markdown('</div>', unsafe_allow_html=True)
                         
-                        if st.button("Đã tặng doorgift", key=f"btn_gift_manual_{sheet_row}", type="primary", use_container_width=True):
+                        if st.button("Tặng doorgift", key=f"btn_gift_manual_{sheet_row}", type="primary", use_container_width=True):
                             with st.spinner("Đang cập nhật..."):
                                 update_doorgift_to_sheet(sheet_row, st.session_state['staff_name'])
-                                st.success(f"Đã cập nhật hệ thống thành công!")
+                                st.success("Đã cập nhật lên hệ thống thành công!")
+                                st.session_state['search_gift'] = ""
                                 st.rerun()
