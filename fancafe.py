@@ -105,7 +105,7 @@ if 'inp_search_checkin' not in st.session_state:
 if 'inp_search_gift' not in st.session_state:
     st.session_state['inp_search_gift'] = ""
 
-# --- CSS TÙY CHỈNH (CỐT LÕI ĐỂ KHÔNG BỊ TRÀN VIỀN) ---
+# --- CSS TÙY CHỈNH (TRẢ VỀ DẠNG RESPONSIVE CHUẨN CỦA ĐIỆN THOẠI) ---
 css = """
 <style>
     footer {visibility: hidden;}
@@ -113,8 +113,8 @@ css = """
     .question-text { color: #fbc02d; font-size: 18px; font-weight: 600; margin-bottom: 10px; }
     
     /* Giao diện Card thống kê */
-    .stat-container { display: flex; gap: 15px; margin-bottom: 25px; flex-wrap: nowrap; }
-    .stat-box { flex: 1; min-width: 0; background: #ffffff; padding: 15px; border-radius: 12px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.06); border: 1px solid #eeeeee; }
+    .stat-container { display: flex; gap: 15px; margin-bottom: 25px; flex-wrap: wrap; }
+    .stat-box { flex: 1; min-width: 140px; background: #ffffff; padding: 15px; border-radius: 12px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.06); border: 1px solid #eeeeee; }
     .stat-box.green-theme { border-top: 5px solid #4caf50; }
     .stat-box.yellow-theme { border-top: 5px solid #fbc02d; }
     .stat-number { font-size: 32px; font-weight: 800; line-height: 1.2; }
@@ -131,46 +131,9 @@ css = """
     .bg-yellow { background-color: #fff9c4; color: #f57f17; }
 
     /* =========================================
-       1. ÉP NẰM NGANG CHUẨN (KHÔNG TRÀN VIỀN, KHÔNG VUỐT)
+       MÀU SẮC NÚT BẤM (BUTTONS)
        ========================================= */
-    /* Lấy đúng 2 hàng đầu tiên (Hàng Header và Hàng Tabs) ép nằm ngang */
-    div[data-testid="stHorizontalBlock"]:nth-of-type(1),
-    div[data-testid="stHorizontalBlock"]:nth-of-type(2) {
-        display: flex !important;
-        flex-direction: row !important;
-        flex-wrap: nowrap !important; /* Cấm rớt dòng */
-        align-items: center !important;
-        width: 100% !important;
-    }
-    
-    /* Áp dụng thủ thuật của Card: chia đều không gian và cho phép thu nhỏ hết mức */
-    div[data-testid="stHorizontalBlock"]:nth-of-type(1) > div[data-testid="column"],
-    div[data-testid="stHorizontalBlock"]:nth-of-type(2) > div[data-testid="column"] {
-        flex: 1 1 0 !important; 
-        width: auto !important;
-        min-width: 0 !important; /* Mấu chốt để không bị tràn viền */
-        padding: 0 4px !important;
-    }
-
-    /* Thu nhỏ nút và chữ trên mobile để dễ nhìn */
-    @media (max-width: 600px) {
-        div[data-testid="stHorizontalBlock"] button {
-            padding: 4px 2px !important;
-            font-size: 11px !important;
-            min-height: 38px !important;
-        }
-        div[data-testid="stHorizontalBlock"]:nth-of-type(1) p {
-            font-size: 12px !important;
-            margin-bottom: 0 !important;
-            white-space: nowrap !important;
-            overflow: hidden !important;
-            text-overflow: ellipsis !important;
-        }
-    }
-
-    /* =========================================
-       2. MÀU SẮC NÚT (ACTION BUTTONS = XANH LÁ)
-       ========================================= */
+    /* Mặc định Nút thao tác (Check-in, Tặng quà) có type="primary" sẽ là XANH LÁ */
     .stButton > button[kind="primary"] { 
         background-color: #4caf50 !important; 
         color: white !important; 
@@ -178,34 +141,17 @@ css = """
         font-weight: bold; 
         border-radius: 8px; 
     }
+    
+    /* Ép chính xác nút Tab đang Active thành màu VÀNG bằng thẻ đánh dấu */
+    div[data-testid="element-container"]:has(.yellow-btn-marker) + div[data-testid="element-container"] button {
+        background: linear-gradient(135deg, #fceabb 0%, #f8b500 100%) !important;
+        color: #333 !important;
+        border-bottom: 4px solid #f57f17 !important;
+        box-shadow: 0 4px 6px rgba(245, 127, 23, 0.3) !important;
+    }
 </style>
 """
 st.markdown(css, unsafe_allow_html=True)
-
-# =========================================
-# 3. NHUỘM MÀU VÀNG CHO TAB ACTIVE
-# =========================================
-active_tab = st.session_state.get('active_tab', 'CHECK-IN')
-if active_tab == "CHECK-IN":
-    active_css = """
-    <style>
-    div[data-testid="stHorizontalBlock"]:nth-of-type(2) > div[data-testid="column"]:nth-child(1) button {
-        background: linear-gradient(135deg, #fceabb 0%, #f8b500 100%) !important;
-        color: #333 !important; border: none !important; border-bottom: 4px solid #f57f17 !important; font-weight: bold !important;
-    }
-    </style>
-    """
-else:
-    active_css = """
-    <style>
-    div[data-testid="stHorizontalBlock"]:nth-of-type(2) > div[data-testid="column"]:nth-child(2) button {
-        background: linear-gradient(135deg, #fceabb 0%, #f8b500 100%) !important;
-        color: #333 !important; border: none !important; border-bottom: 4px solid #f57f17 !important; font-weight: bold !important;
-    }
-    </style>
-    """
-st.markdown(active_css, unsafe_allow_html=True)
-
 
 # Cover Image
 try:
@@ -230,12 +176,12 @@ if not st.session_state['logged_in']:
 
 # --- MÀN HÌNH CHÍNH APP ---
 else:
-    # 1. KHỐI HEADER (Hàng ngang số 1)
-    col_hdr1, col_hdr2, col_hdr3 = st.columns([3, 3, 3])
+    # 1. KHỐI HEADER (Sẽ tự động nằm ngang trên PC, xếp dọc trên Mobile)
+    col_hdr1, col_hdr2, col_hdr3 = st.columns([4, 3, 3])
     with col_hdr1:
         st.write(f"Trực: **{st.session_state['staff_name']}**")
     with col_hdr2:
-        if st.button("🔄 Cập nhật", type="secondary", use_container_width=True):
+        if st.button("🔄 Cập nhật Data", type="secondary", use_container_width=True):
             refresh_data()
             st.toast("Đã làm mới dữ liệu!")
     with col_hdr3:
@@ -259,17 +205,22 @@ else:
         st.error(f"Lỗi khi tải dữ liệu: {e}")
         st.stop()
 
-    # 2. KHỐI ĐIỀU HƯỚNG TAB (Hàng ngang số 2)
+    # 2. KHỐI ĐIỀU HƯỚNG TAB
     tab_col1, tab_col2 = st.columns(2)
     with tab_col1:
-        # Chú ý: cả 2 nút Tab đều setup thành "secondary" để nó hiện Xám.
-        # CSS Nhuộm Vàng ở trên sẽ tự động ghi đè lên nút đang active.
-        if st.button("📌 CHECK-IN", type="secondary", use_container_width=True):
+        # Nhúng thẻ đánh dấu ẩn để biến nút Tab ngay bên dưới thành Vàng
+        if st.session_state['active_tab'] == "CHECK-IN":
+            st.markdown('<div class="yellow-btn-marker" style="display:none;"></div>', unsafe_allow_html=True)
+            
+        if st.button("📌 CHECK-IN", type="primary" if st.session_state['active_tab'] == "CHECK-IN" else "secondary", use_container_width=True):
             st.session_state['active_tab'] = "CHECK-IN"
             st.rerun()
             
     with tab_col2:
-        if st.button("🎁 DOORGIFT", type="secondary", use_container_width=True):
+        if st.session_state['active_tab'] == "DOORGIFT":
+            st.markdown('<div class="yellow-btn-marker" style="display:none;"></div>', unsafe_allow_html=True)
+            
+        if st.button("🎁 DOORGIFT", type="primary" if st.session_state['active_tab'] == "DOORGIFT" else "secondary", use_container_width=True):
             st.session_state['active_tab'] = "DOORGIFT"
             st.rerun()
             
@@ -303,7 +254,6 @@ else:
                         st.markdown('</div>', unsafe_allow_html=True)
                     else:
                         st.markdown('</div>', unsafe_allow_html=True)
-                        # Nút Action Check In sẽ mặc định ăn màu Xanh Lá (Primary)
                         st.button(
                             "Check in", 
                             key=f"btn_chk_{sheet_row}", 
