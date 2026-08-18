@@ -70,11 +70,10 @@ def format_time_vn(time_str):
     except:
         return time_str
 
-# --- CÁC HÀM CALLBACK (Bí quyết giữ Tab không bị nhảy) ---
+# --- CÁC HÀM CALLBACK (XỬ LÝ DỮ LIỆU & XÓA TEXT BOX) ---
 def on_checkin_click(sheet_row, staff_name):
     update_checkin_to_sheet(sheet_row, staff_name)
     st.session_state['success_msg'] = "Đã cập nhật lên hệ thống thành công!"
-    # Làm trống ô text_input một cách mượt mà không đổi ID
     st.session_state['inp_search_checkin'] = "" 
 
 def on_goi_cham_click():
@@ -102,8 +101,10 @@ if 'goi_cham_nhan_qua' not in st.session_state:
     st.session_state['goi_cham_nhan_qua'] = False
 if 'success_msg' not in st.session_state:
     st.session_state['success_msg'] = ""
+if 'active_tab' not in st.session_state:
+    st.session_state['active_tab'] = "CHECK-IN"
 
-# Khởi tạo giá trị rỗng cho ô Input để không bị lỗi KeyError
+# Khởi tạo giá trị rỗng cho ô Input để xóa dễ dàng
 if 'inp_search_checkin' not in st.session_state:
     st.session_state['inp_search_checkin'] = ""
 if 'inp_search_gift' not in st.session_state:
@@ -115,8 +116,11 @@ css = """
     footer {visibility: hidden;}
     .main-title { color: #2e7d32; text-align: center; font-size: 32px; font-weight: bold; margin-bottom: 20px; }
     .question-text { color: #fbc02d; font-size: 18px; font-weight: 600; margin-bottom: 10px; }
+    
+    /* Chỉ làm nổi bật các nút Primary, các nút Secondary sẽ giữ nguyên xám basic của hệ thống */
     .stButton > button[kind="primary"] { background-color: #4caf50 !important; color: white !important; border: none !important; font-weight: bold; border-radius: 8px; }
     
+    /* Giao diện Card thống kê */
     .stat-container { display: flex; gap: 20px; margin-bottom: 25px; flex-wrap: wrap; }
     .stat-box {
         flex: 1; min-width: 140px; background: #ffffff;
@@ -129,9 +133,9 @@ css = """
     .stat-number { font-size: 38px; font-weight: 800; line-height: 1.2; }
     .green-theme .stat-number { color: #2e7d32; }
     .yellow-theme .stat-number { color: #f57f17; }
-    
     .stat-label { font-size: 14px; font-weight: 600; color: #666; text-transform: uppercase; margin-top: 8px; }
 
+    /* Card kết quả */
     .user-card {
         background-color: #ffffff; padding: 20px; border-radius: 15px;
         box-shadow: 0 4px 10px rgba(0,0,0,0.08); border-left: 8px solid #4caf50;
@@ -169,6 +173,7 @@ if not st.session_state['logged_in']:
 
 # --- MÀN HÌNH CHÍNH APP ---
 else:
+    # 1. KHỐI HEADER
     col_hdr1, col_hdr2, col_hdr3 = st.columns([4, 3, 3])
     with col_hdr1:
         st.write(f"Đang trực: **{st.session_state['staff_name']}**")
@@ -197,15 +202,25 @@ else:
         st.error(f"Lỗi khi tải dữ liệu: {e}")
         st.stop()
 
-    # DÙNG LẠI TAB GỐC CỦA STREAMLIT CỰC CHUẨN
-    tab1, tab2 = st.tabs(["📌 TAB CHECK-IN", "🎁 TAB DOORGIFT"])
+    # 2. KHỐI ĐIỀU HƯỚNG BẰNG BUTTON (GIẢ LẬP GIAO DIỆN TAB)
+    # Lợi ích: Nhớ vị trí vĩnh viễn, không bao giờ bị văng màn hình
+    tab_col1, tab_col2 = st.columns(2)
+    with tab_col1:
+        if st.button("📌 MÀN HÌNH CHECK-IN", type="primary" if st.session_state['active_tab'] == "CHECK-IN" else "secondary", use_container_width=True):
+            st.session_state['active_tab'] = "CHECK-IN"
+            st.rerun()
+    with tab_col2:
+        if st.button("🎁 MÀN HÌNH DOORGIFT", type="primary" if st.session_state['active_tab'] == "DOORGIFT" else "secondary", use_container_width=True):
+            st.session_state['active_tab'] = "DOORGIFT"
+            st.rerun()
+            
+    st.write("") # Tạo khoảng trắng nhỏ cho thoáng
 
     # ----------------------------------------
-    # TAB 1: CHECK-IN
+    # NỘI DUNG TAB 1: CHECK-IN
     # ----------------------------------------
-    with tab1:
+    if st.session_state['active_tab'] == "CHECK-IN":
         st.markdown('<div class="question-text">Chấm. cho mình xin số điện thoại nha:</div>', unsafe_allow_html=True)
-        # Bắt giá trị key='inp_search_checkin' vào session_state
         search_checkin = st.text_input("Nhập 3 số đuôi (hoặc full số):", key="inp_search_checkin").strip()
         
         if search_checkin:
@@ -262,14 +277,13 @@ else:
             st.dataframe(df_chuacheck, hide_index=True, use_container_width=True)
 
     # ----------------------------------------
-    # TAB 2: DOORGIFT
+    # NỘI DUNG TAB 2: DOORGIFT
     # ----------------------------------------
-    with tab2:
+    elif st.session_state['active_tab'] == "DOORGIFT":
         df_checked_in = df[df['Đã check'] == True].copy()
         
         st.markdown('### 🎯 Phát quà theo thứ tự')
         
-        # Nút dùng hàm on_click, hoàn toàn không dính líu đến rerun
         st.button(
             "Gọi Chấm nhận quà", 
             type="primary", 
@@ -282,7 +296,6 @@ else:
             
             if df_chua_nhan.empty:
                 st.info("Tất cả những người đã checkin đều đã nhận quà!")
-                # Reset biến ngầm để lần sau không hiện lại
                 st.session_state['goi_cham_nhan_qua'] = False
             else:
                 df_chua_nhan['Time_Obj'] = pd.to_datetime(df_chua_nhan['Time checkin'], dayfirst=True, errors='coerce')
@@ -321,7 +334,6 @@ else:
         st.divider()
         
         st.markdown('### 🔍 Tìm kiếm thủ công')
-        # Bắt giá trị key='inp_search_gift'
         search_gift = st.text_input("Nhập 3 số đuôi SĐT để kiểm tra nhận quà:", key="inp_search_gift").strip()
         
         if search_gift:
