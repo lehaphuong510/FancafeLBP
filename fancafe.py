@@ -5,7 +5,7 @@ from google.oauth2.service_account import Credentials
 from datetime import datetime, timedelta
 
 # --- CẤU HÌNH TRANG ---
-st.set_page_config(page_title="Check in LBP", page_icon="🌱", layout="centered")
+st.set_page_config(page_title="Hệ thống Trại Hè", page_icon="🏕️", layout="centered")
 
 # --- KẾT NỐI GOOGLE SHEETS TỪ SECRETS ---
 SHEET_ID = "1D8wxawBJ97qLiBAd2ym9XNMcXzDd_zBy3INi3_sIom8"
@@ -70,11 +70,18 @@ def format_time_vn(time_str):
     except:
         return time_str
 
-# --- HÀM CALLBACK XỬ LÝ NÚT BẤM K KHÔNG CẦN RERUN ---
+# --- CÁC HÀM CALLBACK (Bí quyết giữ Tab không bị nhảy) ---
 def on_checkin_click(sheet_row, staff_name):
     update_checkin_to_sheet(sheet_row, staff_name)
     st.session_state['success_msg'] = "Đã cập nhật lên hệ thống thành công!"
-    st.session_state['chk_key'] += 1
+    # Làm trống ô text_input một cách mượt mà không đổi ID
+    st.session_state['inp_search_checkin'] = "" 
+
+def on_goi_cham_click():
+    st.session_state['goi_cham_nhan_qua'] = True
+
+def on_dong_goi_cham_click():
+    st.session_state['goi_cham_nhan_qua'] = False
 
 def on_doorgift_auto_click(sheet_row, staff_name):
     update_doorgift_to_sheet(sheet_row, staff_name)
@@ -84,22 +91,23 @@ def on_doorgift_auto_click(sheet_row, staff_name):
 def on_doorgift_manual_click(sheet_row, staff_name):
     update_doorgift_to_sheet(sheet_row, staff_name)
     st.session_state['success_msg'] = "Đã cập nhật lên hệ thống thành công!"
-    st.session_state['gift_key'] += 1
+    st.session_state['inp_search_gift'] = ""
 
-# --- CACHE QUẢN LÝ TRẠNG THÁI & KEY ĐỘNG ---
+# --- CACHE QUẢN LÝ TRẠNG THÁI ---
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 if 'staff_name' not in st.session_state:
     st.session_state['staff_name'] = ""
 if 'goi_cham_nhan_qua' not in st.session_state:
     st.session_state['goi_cham_nhan_qua'] = False
-
-if 'chk_key' not in st.session_state:
-    st.session_state['chk_key'] = 0
-if 'gift_key' not in st.session_state:
-    st.session_state['gift_key'] = 0
 if 'success_msg' not in st.session_state:
     st.session_state['success_msg'] = ""
+
+# Khởi tạo giá trị rỗng cho ô Input để không bị lỗi KeyError
+if 'inp_search_checkin' not in st.session_state:
+    st.session_state['inp_search_checkin'] = ""
+if 'inp_search_gift' not in st.session_state:
+    st.session_state['inp_search_gift'] = ""
 
 # --- CSS TÙY CHỈNH ---
 css = """
@@ -189,7 +197,7 @@ else:
         st.error(f"Lỗi khi tải dữ liệu: {e}")
         st.stop()
 
-    # DÙNG LẠI TAB GỐC CỦA STREAMLIT
+    # DÙNG LẠI TAB GỐC CỦA STREAMLIT CỰC CHUẨN
     tab1, tab2 = st.tabs(["📌 TAB CHECK-IN", "🎁 TAB DOORGIFT"])
 
     # ----------------------------------------
@@ -197,7 +205,8 @@ else:
     # ----------------------------------------
     with tab1:
         st.markdown('<div class="question-text">Chấm. cho mình xin số điện thoại nha:</div>', unsafe_allow_html=True)
-        search_checkin = st.text_input("Nhập 3 số đuôi (hoặc full số):", key=f"search_checkin_{st.session_state['chk_key']}").strip()
+        # Bắt giá trị key='inp_search_checkin' vào session_state
+        search_checkin = st.text_input("Nhập 3 số đuôi (hoặc full số):", key="inp_search_checkin").strip()
         
         if search_checkin:
             results = df[df['SDT'].str.endswith(search_checkin)]
@@ -220,7 +229,6 @@ else:
                         st.markdown('</div>', unsafe_allow_html=True)
                     else:
                         st.markdown('</div>', unsafe_allow_html=True)
-                        # Dùng callback thay cho logic cũ
                         st.button(
                             "Check in", 
                             key=f"btn_chk_{sheet_row}", 
@@ -261,15 +269,20 @@ else:
         
         st.markdown('### 🎯 Phát quà theo thứ tự')
         
-        # Nút bật state (không tương tác data thì không cần callback)
-        if st.button("Gọi Chấm nhận quà", type="primary", use_container_width=True):
-            st.session_state['goi_cham_nhan_qua'] = True
+        # Nút dùng hàm on_click, hoàn toàn không dính líu đến rerun
+        st.button(
+            "Gọi Chấm nhận quà", 
+            type="primary", 
+            use_container_width=True,
+            on_click=on_goi_cham_click
+        )
 
         if st.session_state.get('goi_cham_nhan_qua', False):
             df_chua_nhan = df_checked_in[df_checked_in['Đã nhận gift'] == False].copy()
             
             if df_chua_nhan.empty:
                 st.info("Tất cả những người đã checkin đều đã nhận quà!")
+                # Reset biến ngầm để lần sau không hiện lại
                 st.session_state['goi_cham_nhan_qua'] = False
             else:
                 df_chua_nhan['Time_Obj'] = pd.to_datetime(df_chua_nhan['Time checkin'], dayfirst=True, errors='coerce')
@@ -289,7 +302,6 @@ else:
                 
                 col_btn1, col_btn2 = st.columns(2)
                 with col_btn1:
-                    # Dùng callback
                     st.button(
                         "Tặng doorgift", 
                         key=f"btn_gift_auto_{sheet_row}", 
@@ -299,16 +311,18 @@ else:
                         args=(sheet_row, st.session_state['staff_name'])
                     )
                 with col_btn2:
-                    if st.button("Đóng", type="secondary", use_container_width=True):
-                        st.session_state['goi_cham_nhan_qua'] = False
-                        # Lệnh rerun rỗng ở đây ko sao vì nó chỉ đóng form, văng về tab Checkin cũng đc, 
-                        # nhưng muốn chắc cú thì có thể dùng on_click cho nút Đóng luôn, tớ xài rerun tạm vì ko thao tác data.
-                        st.rerun()
+                    st.button(
+                        "Đóng", 
+                        type="secondary", 
+                        use_container_width=True,
+                        on_click=on_dong_goi_cham_click
+                    )
         
         st.divider()
         
         st.markdown('### 🔍 Tìm kiếm thủ công')
-        search_gift = st.text_input("Nhập 3 số đuôi SĐT để kiểm tra nhận quà:", key=f"search_gift_{st.session_state['gift_key']}").strip()
+        # Bắt giá trị key='inp_search_gift'
+        search_gift = st.text_input("Nhập 3 số đuôi SĐT để kiểm tra nhận quà:", key="inp_search_gift").strip()
         
         if search_gift:
             results_gift = df_checked_in[df_checked_in['SDT'].str.endswith(search_gift)]
@@ -333,7 +347,6 @@ else:
                         st.markdown('<p><span class="status-badge bg-yellow">CHƯA LẤY QUÀ</span></p>', unsafe_allow_html=True)
                         st.markdown('</div>', unsafe_allow_html=True)
                         
-                        # Dùng callback
                         st.button(
                             "Tặng doorgift", 
                             key=f"btn_gift_manual_{sheet_row}", 
