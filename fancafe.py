@@ -24,7 +24,6 @@ def get_gspread_client():
     return gspread.authorize(creds)
 
 def fix_phone_number(phone):
-    """Hàm xử lý triệt để việc mất số 0 ở SĐT"""
     p = str(phone).replace('.0', '').strip()
     if p and p != 'nan' and p != 'None' and not p.startswith('0'):
         return '0' + p
@@ -106,80 +105,91 @@ if 'inp_search_checkin' not in st.session_state:
 if 'inp_search_gift' not in st.session_state:
     st.session_state['inp_search_gift'] = ""
 
-# --- CSS TÙY CHỈNH (MẠNH NHẤT ĐỂ ÉP MOBILE) ---
-css = """
+
+# Xác định index của Tab đang Active để đổi sang màu Vàng bằng Python
+active_idx = 1 if st.session_state.get('active_tab', 'CHECK-IN') == "CHECK-IN" else 2
+
+# --- CSS TÙY CHỈNH ---
+css = f"""
 <style>
-    footer {visibility: hidden;}
-    .main-title { color: #2e7d32; text-align: center; font-size: 32px; font-weight: bold; margin-bottom: 20px; }
-    .question-text { color: #fbc02d; font-size: 18px; font-weight: 600; margin-bottom: 10px; }
+    footer {{visibility: hidden;}}
+    .main-title {{ color: #2e7d32; text-align: center; font-size: 32px; font-weight: bold; margin-bottom: 20px; }}
+    .question-text {{ color: #fbc02d; font-size: 18px; font-weight: 600; margin-bottom: 10px; }}
     
     /* Giao diện Card thống kê */
-    .stat-container { display: flex; gap: 20px; margin-bottom: 25px; flex-wrap: wrap; }
-    .stat-box { flex: 1; min-width: 140px; background: #ffffff; padding: 20px; border-radius: 12px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.06); border: 1px solid #eeeeee; }
-    .stat-box.green-theme { border-top: 5px solid #4caf50; }
-    .stat-box.yellow-theme { border-top: 5px solid #fbc02d; }
-    .stat-number { font-size: 38px; font-weight: 800; line-height: 1.2; }
-    .green-theme .stat-number { color: #2e7d32; }
-    .yellow-theme .stat-number { color: #f57f17; }
-    .stat-label { font-size: 14px; font-weight: 600; color: #666; text-transform: uppercase; margin-top: 8px; }
+    .stat-container {{ display: flex; gap: 15px; margin-bottom: 25px; flex-wrap: nowrap; }}
+    .stat-box {{ flex: 1; min-width: 0; background: #ffffff; padding: 15px; border-radius: 12px; text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.06); border: 1px solid #eeeeee; }}
+    .stat-box.green-theme {{ border-top: 5px solid #4caf50; }}
+    .stat-box.yellow-theme {{ border-top: 5px solid #fbc02d; }}
+    .stat-number {{ font-size: 32px; font-weight: 800; line-height: 1.2; }}
+    .green-theme .stat-number {{ color: #2e7d32; }}
+    .yellow-theme .stat-number {{ color: #f57f17; }}
+    .stat-label {{ font-size: 13px; font-weight: 600; color: #666; text-transform: uppercase; margin-top: 8px; }}
 
     /* Card kết quả */
-    .user-card { background-color: #ffffff; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); border-left: 8px solid #4caf50; margin-bottom: 15px; border-top: 1px solid #eee; border-right: 1px solid #eee; border-bottom: 1px solid #eee; }
-    .user-card h4 { color: #2e7d32; margin-top: 0; margin-bottom: 8px; font-size: 22px; }
-    .user-card p { margin: 5px 0; font-size: 16px; color: #555; }
-    .status-badge { display: inline-block; padding: 5px 10px; border-radius: 20px; font-size: 13px; font-weight: bold; margin-top: 5px; }
-    .bg-green { background-color: #c8e6c9; color: #2e7d32; }
-    .bg-yellow { background-color: #fff9c4; color: #f57f17; }
+    .user-card {{ background-color: #ffffff; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); border-left: 8px solid #4caf50; margin-bottom: 15px; border-top: 1px solid #eee; border-right: 1px solid #eee; border-bottom: 1px solid #eee; }}
+    .user-card h4 {{ color: #2e7d32; margin-top: 0; margin-bottom: 8px; font-size: 22px; }}
+    .user-card p {{ margin: 5px 0; font-size: 16px; color: #555; }}
+    .status-badge {{ display: inline-block; padding: 5px 10px; border-radius: 20px; font-size: 13px; font-weight: bold; margin-top: 5px; }}
+    .bg-green {{ background-color: #c8e6c9; color: #2e7d32; }}
+    .bg-yellow {{ background-color: #fff9c4; color: #f57f17; }}
 
     /* =========================================
-       1. MÀU SẮC NÚT & TAB VÀNG
+       1. MÀU SẮC NÚT & TAB VÀNG (BẰNG PYTHON INJECT)
        ========================================= */
-    /* Mặc định nút Primary là Xanh lá (Dùng cho Action Buttons) */
-    .stButton > button[kind="primary"] { 
+    /* Mặc định mọi nút Hành động (Action) là Xanh lá */
+    .stButton > button[kind="primary"] {{ 
         background-color: #4caf50 !important; 
         color: white !important; 
         border: none !important; 
         font-weight: bold; 
         border-radius: 8px; 
-    }
+    }}
     
-    /* Ép cụm cột nào chứa thẻ marker Tab Active chuyển sang nút Vàng */
-    div[data-testid="column"]:has(.active-tab-marker) button {
+    /* Ép chính xác Nút Tab đang Active thành màu Vàng (Cụm cột số 2) */
+    div[data-testid="stHorizontalBlock"]:nth-of-type(2) div[data-testid="column"]:nth-child({active_idx}) button {{
         background: linear-gradient(135deg, #fceabb 0%, #f8b500 100%) !important;
         color: #333 !important;
         border-bottom: 3px solid #f57f17 !important;
         box-shadow: 0 4px 6px rgba(245, 127, 23, 0.3) !important;
-    }
+    }}
 
     /* =========================================
-       2. ÉP NẰM NGANG TRÊN MOBILE CHUẨN XÁC NHẤT
+       2. ÉP NẰM NGANG CHUẨN XÁC KHÔNG CẦN VUỐT
        ========================================= */
-    @media (max-width: 768px) {
-        /* Bẻ khóa tính năng tự động rớt dòng của Streamlit */
-        div[data-testid="stHorizontalBlock"] {
+    @media (max-width: 768px) {{
+        /* Ép các block ngang không được rớt dòng và không cho tràn viền */
+        div[data-testid="stHorizontalBlock"] {{
             flex-direction: row !important;
             flex-wrap: nowrap !important;
-            align-items: center !important;
-        }
-        /* Ép các cột chia đều không gian trên cùng 1 hàng */
-        div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
-            width: auto !important;
-            min-width: 0 !important;
+            width: 100% !important;
+            overflow: hidden !important; 
+        }}
+        
+        /* Chia đều chỗ gian, quan trọng nhất là min-width: 0 để tự ép nhỏ */
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {{
+            width: 100% !important;
+            flex: 1 1 0 !important;
+            min-width: 0 !important; 
             padding: 0 3px !important;
-        }
-        /* Thu nhỏ chữ các nút bấm để vừa khít màn hình ngang */
-        div[data-testid="stHorizontalBlock"] button {
-            padding: 5px 5px !important;
+        }}
+        
+        /* Cấu hình chữ trên nút tự động gói gọn lại */
+        div[data-testid="stHorizontalBlock"] button {{
+            padding: 5px 2px !important;
+            font-size: 11px !important;
+            white-space: normal !important;
+            line-height: 1.2 !important;
+            height: auto !important;
+            min-height: 45px !important;
+        }}
+        
+        /* Cấu hình text Header nhỏ lại xíu */
+        div[data-testid="stHorizontalBlock"] p {{
             font-size: 12px !important;
-        }
-        /* Thu nhỏ chữ Tên Staff */
-        div[data-testid="stHorizontalBlock"] p {
-            font-size: 13px !important;
-            white-space: nowrap !important;
-            overflow: hidden !important;
-            text-overflow: ellipsis !important;
-        }
-    }
+            margin-bottom: 0 !important;
+        }}
+    }}
 </style>
 """
 st.markdown(css, unsafe_allow_html=True)
@@ -207,12 +217,12 @@ if not st.session_state['logged_in']:
 
 # --- MÀN HÌNH CHÍNH APP ---
 else:
-    # 1. KHỐI HEADER
-    col_hdr1, col_hdr2, col_hdr3 = st.columns([4, 3, 3])
+    # 1. KHỐI HEADER (Đã rút gọn chữ để điện thoại hiện vừa vặn 1 dòng)
+    col_hdr1, col_hdr2, col_hdr3 = st.columns([3, 3, 3])
     with col_hdr1:
-        st.write(f"Đang trực: **{st.session_state['staff_name']}**")
+        st.write(f"Trực: **{st.session_state['staff_name']}**")
     with col_hdr2:
-        if st.button("🔄 Cập nhật Data", type="secondary", use_container_width=True):
+        if st.button("🔄 Cập nhật", type="secondary", use_container_width=True):
             refresh_data()
             st.toast("Đã làm mới dữ liệu!")
     with col_hdr3:
@@ -236,23 +246,15 @@ else:
         st.error(f"Lỗi khi tải dữ liệu: {e}")
         st.stop()
 
-    # 2. KHỐI ĐIỀU HƯỚNG TAB 
+    # 2. KHỐI ĐIỀU HƯỚNG TAB (Đã rút gọn text)
     tab_col1, tab_col2 = st.columns(2)
     with tab_col1:
-        # Nếu Tab 1 đang mở -> Chèn mã ẩn để CSS đổi màu nút này thành Vàng
-        if st.session_state['active_tab'] == "CHECK-IN":
-            st.markdown('<span class="active-tab-marker" style="display:none;"></span>', unsafe_allow_html=True)
-            
-        if st.button("📌 MÀN HÌNH CHECK-IN", type="primary" if st.session_state['active_tab'] == "CHECK-IN" else "secondary", use_container_width=True):
+        if st.button("📌 CHECK-IN", type="primary" if st.session_state['active_tab'] == "CHECK-IN" else "secondary", use_container_width=True):
             st.session_state['active_tab'] = "CHECK-IN"
             st.rerun()
             
     with tab_col2:
-        # Nếu Tab 2 đang mở -> Chèn mã ẩn để CSS đổi màu nút này thành Vàng
-        if st.session_state['active_tab'] == "DOORGIFT":
-            st.markdown('<span class="active-tab-marker" style="display:none;"></span>', unsafe_allow_html=True)
-            
-        if st.button("🎁 MÀN HÌNH DOORGIFT", type="primary" if st.session_state['active_tab'] == "DOORGIFT" else "secondary", use_container_width=True):
+        if st.button("🎁 DOORGIFT", type="primary" if st.session_state['active_tab'] == "DOORGIFT" else "secondary", use_container_width=True):
             st.session_state['active_tab'] = "DOORGIFT"
             st.rerun()
             
